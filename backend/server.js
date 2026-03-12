@@ -2,10 +2,13 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const job = require("./cron");
 
 dotenv.config();
 
 const app = express();
+
+if (process.env.Node_ENV === "production") job.start();
 
 // Middleware
 app.use(cors({
