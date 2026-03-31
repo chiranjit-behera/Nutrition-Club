@@ -1,5 +1,5 @@
-/backend/node_modules
-/backend/.env
-/backend/seed.js
-/frontend/node_modules
-/frontend/.env
+/Nutrition-Club-Backend/node_modules
+/Nutrition-Club-Backend/.env
+/Nutrition-Club-Backend/seed.js
+/Nutrition-Club-Frontend/node_modules
+/Nutrition-Club-Frontend/.env
