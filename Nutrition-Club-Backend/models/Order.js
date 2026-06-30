@@ -53,6 +53,40 @@ const orderSchema = new mongoose.Schema({
     enum: ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'],
     default: 'Pending'
   },
+  paymentMethod: {
+    type: String,
+    enum: ['COD', 'Card'],
+    default: 'COD'
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['Pending', 'Paid', 'Failed'],
+    default: 'Pending'
+  },
+  razorpayOrderId: {
+    type: String
+  },
+  razorpayPaymentId: {
+    type: String
+  },
+  razorpaySignature: {
+    type: String
+  },
+  deliveryFee: {
+    type: Number,
+    default: 0
+  },
+  taxAmount: {
+    type: Number,
+    default: 0
+  },
+  deliveryDistance: {
+    type: Number
+  },
+  deliveryCoordinates: {
+    lat: Number,
+    lng: Number
+  },
   notes: {
     type: String,
     maxlength: [300, 'Notes cannot exceed 300 characters']

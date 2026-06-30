@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 const job = require("./middleware/cron");
 
 dotenv.config();
@@ -42,12 +43,16 @@ app.use(express.json());
 //   res.json({ status: 'OK', message: 'Food Order API is running' });
 // });
 
+// Static files folder
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Routes
 app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/bookings', require('./routes/bookingRoutes'));
 app.use('/api/event-plans', require('./routes/eventPlanRoutes'));
+app.use('/api/upload', require('./routes/uploadRoutes'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'Food Order API is running' }));

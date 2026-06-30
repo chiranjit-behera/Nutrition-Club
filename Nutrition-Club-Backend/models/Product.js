@@ -13,12 +13,6 @@ const productSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: [
-      // Food categories
-      'Cakes',
-      // Gift categories
-      'Show Piece', 'Photo Frame', 'Decorative lights', 'Wall paint photo', 'Soft toys'
-    ],
     default: 'Main Course'
   },
   image: { type: String, default: '' },

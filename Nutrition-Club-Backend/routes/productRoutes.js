@@ -30,6 +30,19 @@ router.get('/admin/all', protect, async (req, res) => {
   }
 });
 
+// GET dynamic categories list (public)
+router.get('/categories', async (req, res) => {
+  try {
+    const { catalogType } = req.query;
+    const query = { isAvailable: true };
+    if (catalogType) query.catalogType = catalogType;
+    const categories = await Product.distinct('category', query);
+    res.json({ success: true, data: categories });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET single product
 router.get('/:id', async (req, res) => {
   try {

@@ -3,11 +3,80 @@ const router = express.Router();
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const { protect, superAdminOnly } = require('../middleware/auth');
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || 'dummy_key_id',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || 'dummy_key_secret'
+});
+
+// VERIFY payment (public)
+router.post('/verify-payment', async (req, res) => {
+  try {
+    const { razorpayPaymentId, razorpayOrderId, razorpaySignature } = req.body;
+    if (!razorpayPaymentId || !razorpayOrderId || !razorpaySignature) {
+      return res.status(400).json({ success: false, message: 'All signature fields are required' });
+    }
+
+    const generatedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'dummy_key_secret')
+      .update(razorpayOrderId + '|' + razorpayPaymentId)
+      .digest('hex');
+
+    if (generatedSignature === razorpaySignature) {
+      const order = await Order.findOne({ razorpayOrderId }).populate('items.product');
+      if (!order) {
+        return res.status(404).json({ success: false, message: 'Order not found' });
+      }
+
+      if (order.paymentStatus !== 'Paid') {
+        order.paymentStatus = 'Paid';
+        order.status = 'Confirmed';
+        order.razorpayPaymentId = razorpayPaymentId;
+        order.razorpaySignature = razorpaySignature;
+        order.statusHistory.push({ status: 'Confirmed', note: `Payment verified via Razorpay. Payment ID: ${razorpayPaymentId}` });
+        await order.save();
+      }
+      return res.json({ success: true, data: order, message: 'Payment verified successfully!' });
+    } else {
+      return res.status(400).json({ success: false, message: 'Payment verification failed (signature mismatch)' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// CANCEL payment and restore stock (public)
+router.post('/:id/cancel-payment', async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Only allow cancellation of pending/card orders that are not yet paid
+    if (order.paymentMethod === 'Card' && order.paymentStatus === 'Pending' && order.status === 'Pending') {
+      // Rollback stock
+      for (const item of order.items) {
+        await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity } });
+      }
+      order.status = 'Cancelled';
+      order.paymentStatus = 'Failed';
+      order.statusHistory.push({ status: 'Cancelled', note: 'Order cancelled due to payment failure or abandonment' });
+      await order.save();
+      return res.json({ success: true, data: order, message: 'Order payment cancelled and stock restored.' });
+    }
+
+    return res.status(400).json({ success: false, message: 'Order cannot be cancelled or is already processed.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // CREATE order (public)
 router.post('/', async (req, res) => {
   try {
-    const { customer, items, notes, paymentMethod } = req.body;
+    const { customer, items, notes, paymentMethod, deliveryFee, taxAmount, deliveryDistance, deliveryCoordinates } = req.body;
     if (!items || items.length === 0)
       return res.status(400).json({ success: false, message: 'No items in order' });
 
@@ -26,9 +95,50 @@ router.post('/', async (req, res) => {
       await Product.findByIdAndUpdate(product._id, { $inc: { stock: -item.quantity } });
     }
 
-    const order = new Order({ customer, items: orderItems, totalAmount, paymentMethod: paymentMethod || 'Online', notes });
+    const order = new Order({ 
+      customer, 
+      items: orderItems, 
+      totalAmount, 
+      paymentMethod: paymentMethod || 'COD', 
+      notes,
+      deliveryFee: Number(deliveryFee) || 0,
+      taxAmount: Number(taxAmount) || 0,
+      deliveryDistance: Number(deliveryDistance) || undefined,
+      deliveryCoordinates: deliveryCoordinates || undefined
+    });
     await order.save();
-    res.status(201).json({ success: true, data: order, message: 'Order placed successfully!' });
+
+    let razorpayOrder = null;
+    if (paymentMethod === 'Card') {
+      try {
+        const grandTotal = totalAmount + (Number(deliveryFee) || 0) + (Number(taxAmount) || 0);
+
+        const options = {
+          amount: Math.round(grandTotal * 100), // in Paisa
+          currency: 'INR',
+          receipt: order._id.toString()
+        };
+
+        razorpayOrder = await razorpay.orders.create(options);
+        order.razorpayOrderId = razorpayOrder.id;
+        await order.save();
+      } catch (rzpErr) {
+        // Rollback stock
+        for (const item of orderItems) {
+          await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity } });
+        }
+        await Order.findByIdAndDelete(order._id);
+        throw rzpErr;
+      }
+    }
+
+    res.status(201).json({ 
+      success: true, 
+      data: order, 
+      razorpayOrder, 
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+      message: paymentMethod === 'Card' ? 'Razorpay order created successfully' : 'Order placed successfully!' 
+    });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
