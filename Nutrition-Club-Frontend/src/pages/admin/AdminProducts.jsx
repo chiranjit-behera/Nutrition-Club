@@ -21,18 +21,60 @@ const InputField = ({ label, name, type = 'text', placeholder, required, value, 
   </div>
 );
 
-const ProductModal = ({ product, onClose, onSave }) => {
+const ProductModal = ({ product, products = [], onClose, onSave }) => {
   const isEdit = !!product?._id;
   const [form, setForm] = useState(product ? { ...product, price: String(product.price), stock: String(product.stock) } : EMPTY_FORM);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
-  const categories = form.catalogType === 'Food' ? FOOD_CATEGORIES : GIFT_CATEGORIES;
+  const [customCategory, setCustomCategory] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    setUploadingImage(true);
+    try {
+      const res = await api.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setForm(p => ({ ...p, image: res.data.url }));
+      toast.success('Image uploaded successfully!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // Calculate dynamic categories combining defaults and existing db categories
+  const defaultCats = form.catalogType === 'Food' ? FOOD_CATEGORIES : GIFT_CATEGORIES;
+  const dbCats = Array.from(new Set(
+    products
+      .filter(p => p.catalogType === form.catalogType)
+      .map(p => p.category)
+      .filter(Boolean)
+  ));
+  const categories = Array.from(new Set([...defaultCats, ...dbCats]));
 
   useEffect(() => {
-    if (!categories.includes(form.category)) setForm(p => ({ ...p, category: categories[0] }));
-  }, [form.catalogType]);
+    // Reset category if current form.category is not in the list of categories for this catalogType
+    const defaultCats = form.catalogType === 'Food' ? FOOD_CATEGORIES : GIFT_CATEGORIES;
+    const dbCats = Array.from(new Set(
+      products
+        .filter(p => p.catalogType === form.catalogType)
+        .map(p => p.category)
+        .filter(Boolean)
+    ));
+    const allCats = Array.from(new Set([...defaultCats, ...dbCats]));
 
-  console.log(form.category)
+    if (form.category !== '__new__' && !allCats.includes(form.category)) {
+      setForm(p => ({ ...p, category: allCats[0] || '' }));
+    }
+  }, [form.catalogType]);
 
   const validate = () => {
     const e = {};
@@ -40,6 +82,7 @@ const ProductModal = ({ product, onClose, onSave }) => {
     if (!form.description.trim()) e.description = 'Description is required';
     if (!form.price || isNaN(form.price) || Number(form.price) <= 0) e.price = 'Enter a valid price';
     if (!form.category) e.category = 'Select a category';
+    else if (form.category === '__new__' && !customCategory.trim()) e.customCategory = 'Custom category name is required';
     if (form.stock === '' || isNaN(form.stock) || Number(form.stock) < 0) e.stock = 'Enter valid stock';
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -55,7 +98,9 @@ const ProductModal = ({ product, onClose, onSave }) => {
     if (!validate()) return;
     setSaving(true);
     try {
-      const payload = { ...form, price: Number(form.price), stock: Number(form.stock) };
+      const finalCategory = form.category === '__new__' ? customCategory.trim() : form.category;
+      const payload = { ...form, category: finalCategory, price: Number(form.price), stock: Number(form.stock) };
+      
       const res = isEdit
         ? await api.put(`/products/${product._id}`, payload)
         : await api.post('/products', payload);
@@ -108,21 +153,69 @@ const ProductModal = ({ product, onClose, onSave }) => {
               className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${errors.category ? 'border-red-400' : 'border-gray-200'}`}>
               <option value="">Select category</option>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              <option value="__new__">+ Add Custom Category...</option>
             </select>
           </InputField>
 
-          <InputField label="Image URL (optional)" name="image" placeholder="https://..." value={form.image} onChange={handleChange} />
+          {form.category === '__new__' && (
+            <InputField label="Custom Category Name" name="customCategory" required error={errors.customCategory}>
+              <input type="text" placeholder="e.g. Biryani" value={customCategory} onChange={e => {
+                setCustomCategory(e.target.value);
+                if (errors.customCategory) setErrors(p => ({ ...p, customCategory: '' }));
+              }}
+                className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${errors.customCategory ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200'}`} />
+            </InputField>
+          )}
 
-          <div className="flex gap-6">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Product Image</label>
+            <div className="flex items-center gap-3">
+              {form.image && (
+                <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-50 border flex-shrink-0">
+                  <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+              )}
+              <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-200 hover:border-orange-400 rounded-xl p-4 cursor-pointer transition-colors bg-gray-50">
+                <div className="flex flex-col items-center text-center">
+                  <span className="text-xl mb-1">📁</span>
+                  <span className="text-xs font-semibold text-gray-600">
+                    {uploadingImage ? 'Uploading...' : form.image ? 'Change Image' : 'Upload Image'}
+                  </span>
+                  <span className="text-[10px] text-gray-400 mt-0.5">PNG, JPG, JPEG or WEBP (Max 5MB)</span>
+                </div>
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
+              </label>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" name="isAvailable" checked={form.isAvailable} onChange={handleChange} className="w-4 h-4 accent-orange-500" />
               <span className="text-sm font-medium text-gray-700">Available</span>
             </label>
+
             {form.catalogType === 'Food' && (
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="isVeg" checked={form.isVeg} onChange={handleChange} className="w-4 h-4 accent-green-500" />
-                <span className="text-sm font-medium text-gray-700">Vegetarian</span>
-              </label>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">Dietary Option</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setForm(p => ({ ...p, isVeg: true }))}
+                    className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 transition-all text-sm font-semibold ${
+                      form.isVeg
+                        ? 'border-green-500 bg-green-50 text-green-700 shadow-sm'
+                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}>
+                    <span className="text-xs">🟢</span> Vegetarian (Veg)
+                  </button>
+                  <button type="button" onClick={() => setForm(p => ({ ...p, isVeg: false }))}
+                    className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 transition-all text-sm font-semibold ${
+                      !form.isVeg
+                        ? 'border-red-500 bg-red-50 text-red-700 shadow-sm'
+                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}>
+                    <span className="text-xs">🔴</span> Non-Vegetarian (Non-Veg)
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -147,7 +240,14 @@ const AdminProducts = () => {
   const [search, setSearch] = useState('');
   const [modalProduct, setModalProduct] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const categories = activeCatalog === 'Food' ? FOOD_CATEGORIES : GIFT_CATEGORIES;
+  const defaultCats = activeCatalog === 'Food' ? FOOD_CATEGORIES : GIFT_CATEGORIES;
+  const dbCats = Array.from(new Set(
+    products
+      .filter(p => p.catalogType === activeCatalog)
+      .map(p => p.category)
+      .filter(Boolean)
+  ));
+  const categories = Array.from(new Set([...defaultCats, ...dbCats]));
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -308,7 +408,7 @@ const AdminProducts = () => {
       )}
 
       {showModal && modalProduct && (
-        <ProductModal product={modalProduct} onClose={() => { setShowModal(false); setModalProduct(null); }} onSave={handleSave} />
+        <ProductModal product={modalProduct} products={products} onClose={() => { setShowModal(false); setModalProduct(null); }} onSave={handleSave} />
       )}
     </div>
   );

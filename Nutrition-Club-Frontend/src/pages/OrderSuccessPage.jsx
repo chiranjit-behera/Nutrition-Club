@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, Navigate } from 'react-router-dom';
-import { CheckCircle, Package, MapPin, Phone, Mail, UtensilsCrossed, Clock } from 'lucide-react';
+import { CheckCircle, Package, MapPin, Phone, Mail, UtensilsCrossed, Clock, CreditCard } from 'lucide-react';
 import Navbar from '../components/Navbar';
 
 const OrderSuccessPage = () => {
@@ -62,6 +62,32 @@ const OrderSuccessPage = () => {
                 <MapPin className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
                 {order.customer.address}
               </p>
+            </div>
+          </div>
+
+          {/* Payment Details */}
+          <div className="mb-5">
+            <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-orange-500" />
+              Payment Details
+            </h3>
+            <div className="bg-orange-50 rounded-xl p-4 space-y-2 text-sm text-gray-700">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500 font-medium">Payment Method:</span>
+                <span className="font-semibold text-gray-800">{order.paymentMethod === 'Card' ? 'Online (Razorpay)' : 'Cash on Delivery (COD)'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500 font-medium">Payment Status:</span>
+                <span className={`badge px-2.5 py-0.5 text-xs font-semibold rounded-full border ${
+                  order.paymentStatus === 'Paid'
+                    ? 'bg-green-100 text-green-700 border-green-200'
+                    : order.paymentStatus === 'Failed'
+                    ? 'bg-red-100 text-red-700 border-red-200'
+                    : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                }`}>
+                  {order.paymentStatus || 'Pending'}
+                </span>
+              </div>
             </div>
           </div>
 

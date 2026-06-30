@@ -7,15 +7,15 @@ import { useCart } from '../context/CartContext';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 
-const FOOD_CATEGORIES = ['All','Starters','Main Course','Pizza','Burgers','Snacks','Soups','Salads','Desserts','Beverages','Specials'];
-const GIFT_CATEGORIES = ['All','Photo Frames','Show Pieces','Decorative Lights','Wall Art','Soft Toys','Hampers','Combos','Seasonal'];
+const FOOD_CATEGORIES_DEFAULT = ['Starters','Main Course','Pizza','Burgers','Snacks','Soups','Salads','Cakes','Desserts','Beverages','Specials'];
+const GIFT_CATEGORIES_DEFAULT = ['Photo Frames','Show Pieces','Decorative Lights','Wall Art','Soft Toys','Hampers','Combos','Seasonal'];
 
 const DeliveryPage = () => {
   const { type } = useParams();
   const isFood = type === 'food';
   const catalogType = isFood ? 'Food' : 'Gift';
-  const categories = isFood ? FOOD_CATEGORIES : GIFT_CATEGORIES;
 
+  const [categories, setCategories] = useState(['All']);
   const [products, setProducts]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [selectedCat, setSelectedCat] = useState('All');
@@ -24,6 +24,22 @@ const DeliveryPage = () => {
   const { totalItems, totalPrice, syncCartStock } = useCart();
 
   useEffect(() => { setSelectedCat('All'); setSearch(''); }, [type]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await api.get('/products/categories', { params: { catalogType } });
+        const defaultCats = isFood ? FOOD_CATEGORIES_DEFAULT : GIFT_CATEGORIES_DEFAULT;
+        const merged = Array.from(new Set([...defaultCats, ...res.data.data]));
+        setCategories(['All', ...merged]);
+      } catch (err) {
+        const defaultCats = isFood ? FOOD_CATEGORIES_DEFAULT : GIFT_CATEGORIES_DEFAULT;
+        setCategories(['All', ...defaultCats]);
+      }
+    };
+    fetchCategories();
+  }, [type]);
+
   useEffect(() => { const t = setTimeout(() => setDebSearch(search), 400); return () => clearTimeout(t); }, [search]);
   useEffect(() => { fetchProducts(); }, [selectedCat, debSearch, type]);
 

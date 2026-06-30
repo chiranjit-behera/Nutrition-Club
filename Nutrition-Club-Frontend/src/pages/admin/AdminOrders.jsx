@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   Search, RefreshCw, Eye, CheckSquare, Square,
   AlertCircle, X, MapPin, Phone, Mail, Package,
-  Trash2, ShieldAlert
+  Trash2, ShieldAlert, CreditCard
 } from 'lucide-react';
 import {
   fetchOrders, updateOrderStatus, bulkUpdateOrderStatus,
@@ -87,6 +87,41 @@ const OrderDetailModal = ({ order, onClose }) => {
               <div className="flex items-start gap-2 sm:col-span-2"><MapPin className="w-4 h-4 text-orange-400 mt-0.5" /><span>{order.customer.address}</span></div>
             </div>
           </div>
+
+          <div className="bg-orange-50 rounded-xl p-4">
+            <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2"><CreditCard className="w-4 h-4 text-orange-500" />Payment Details</h3>
+            <div className="grid sm:grid-cols-2 gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400 w-28">Payment Method:</span>
+                <span className="font-semibold text-gray-800">{order.paymentMethod === 'Card' ? 'Online (Razorpay)' : 'Cash on Delivery (COD)'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400 w-28">Payment Status:</span>
+                <span className={`badge px-2.5 py-0.5 text-xs font-semibold rounded-full border ${
+                  order.paymentStatus === 'Paid'
+                    ? 'bg-green-100 text-green-700 border-green-200'
+                    : order.paymentStatus === 'Failed'
+                    ? 'bg-red-100 text-red-700 border-red-200'
+                    : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                }`}>
+                  {order.paymentStatus || 'Pending'}
+                </span>
+              </div>
+              {order.razorpayOrderId && (
+                <div className="flex items-start gap-2 sm:col-span-2">
+                  <span className="text-gray-400 w-28 flex-shrink-0">Razorpay Order ID:</span>
+                  <span className="font-mono text-xs text-gray-600 truncate">{order.razorpayOrderId}</span>
+                </div>
+              )}
+              {order.razorpayPaymentId && (
+                <div className="flex items-start gap-2 sm:col-span-2">
+                  <span className="text-gray-400 w-28 flex-shrink-0">Razorpay Payment ID:</span>
+                  <span className="font-mono text-xs text-gray-600 truncate">{order.razorpayPaymentId}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div>
             <h3 className="font-semibold text-gray-700 mb-3">Order Items</h3>
             <div className="border border-gray-100 rounded-xl overflow-hidden">
@@ -102,8 +137,29 @@ const OrderDetailModal = ({ order, onClose }) => {
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-orange-50">
-                  <tr><td colSpan={3} className="px-4 py-3 font-bold text-gray-700 text-right">Total</td><td className="px-4 py-3 font-bold text-orange-600 text-base">₹{order.totalAmount}</td></tr>
+                <tfoot className="bg-orange-50 divide-y divide-orange-100/50">
+                  <tr>
+                    <td colSpan={3} className="px-4 py-2 text-right text-gray-600 text-xs">Subtotal</td>
+                    <td className="px-4 py-2 text-gray-700 text-xs font-semibold">₹{order.totalAmount}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={3} className="px-4 py-2 text-right text-gray-600 text-xs">
+                      Delivery {order.deliveryDistance ? `(${order.deliveryDistance.toFixed(1)} km)` : ''}
+                    </td>
+                    <td className="px-4 py-2 text-gray-700 text-xs font-semibold">
+                      {order.deliveryFee === 0 ? 'FREE' : `₹${order.deliveryFee || 0}`}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colSpan={3} className="px-4 py-2 text-right text-gray-600 text-xs">Taxes</td>
+                    <td className="px-4 py-2 text-gray-700 text-xs font-semibold">₹{order.taxAmount || 0}</td>
+                  </tr>
+                  <tr className="border-t border-orange-200">
+                    <td colSpan={3} className="px-4 py-3 font-bold text-gray-700 text-right">Grand Total</td>
+                    <td className="px-4 py-3 font-bold text-orange-600 text-base">
+                      ₹{order.totalAmount + (order.deliveryFee || 0) + (order.taxAmount || 0)}
+                    </td>
+                  </tr>
                 </tfoot>
               </table>
             </div>

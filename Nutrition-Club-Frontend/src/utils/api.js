@@ -1,9 +1,9 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://bookingatcutmpkd-backend.vercel.app/api',
+  // baseURL: 'https://bookingatcutmpkd-backend.vercel.app/api',
   // baseURL: 'https://nutrition-club.onrender.com/api',
-  // baseURL: 'http://localhost:5000/api',
+  baseURL: 'http://localhost:5000/api',
   timeout: 60000,
 });
 
